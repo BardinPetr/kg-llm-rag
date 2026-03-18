@@ -48,7 +48,7 @@ class DiagramNodesDetector:
 
 if __name__ == "__main__":
     a = serve.run(DiagramNodesDetector.bind())
-    orig = cv2.imread(f"/home/petr/study/diploma/src/datasetgen/demo/044030790.png")
-    res = a.remote(orig).result()
+    # orig = cv2.imread(f"/home/petr/study/diploma/src/datasetgen/demo/044030790.png")
+    # res = a.remote(orig).result()
     # a(orig)
-    print(res)
+    # print(res)

@@ -1,0 +1,8 @@
+path: diagdataset
+train: images/train
+val: images/val
+
+names:
+  0: node
+  1: link
+  2: arrowhead

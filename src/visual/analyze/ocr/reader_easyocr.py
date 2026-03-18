@@ -2,10 +2,10 @@ import time
 
 import numpy as np
 from easyocr import Reader
-from visual.analyze.ocr.model import OCROutput, OCRText
 from ray import serve
 from rich import print
 
+from visual.analyze.ocr.model import OCROutput, OCRText
 from visual.models.diagram import BBox
 
 
@@ -21,7 +21,13 @@ class OCRReaderEasyocr:
             paragraph=True,
             text_threshold=0.05,
             low_text=0.3,
-            width_ths=1
+            slope_ths = 0.1,
+            ycenter_ths = 0.5,  # max shift y
+            height_ths = 0.3,  # max box height diff
+            width_ths = 0.3,  # max horizontal distance
+            add_margin = 0,
+            x_ths = 0.5,
+            y_ths = 0.5,
             # rotation_info=[0, 90, 270]
         )
         self.language = language
@@ -34,10 +40,13 @@ class OCRReaderEasyocr:
             pass
         print(f"[OCR {language}] loading done")
 
-    def __call__(self, image) -> OCROutput:
+    def __call__(self, image, config=None) -> OCROutput:
         print(f"[OCR] start")
         ts = time.time()
-        result = self._reader.readtext(image, **self._run_config)
+        result = self._reader.readtext(
+            image,
+            **{**self._run_config, **(config or {})}
+        )
         result = OCROutput(
             lang=self.language,
             texts=[OCRText(text=text,

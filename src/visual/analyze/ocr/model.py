@@ -18,5 +18,5 @@ class OCROutput(BaseModel):
     texts: List[OCRText] = field(default_factory=list)
 
     @property
-    def boxes(self) -> Tuple[np.array, List[str]]:
+    def boxes(self) -> Tuple[List[BBox], List[str]]:
         return [i.bbox for i in self.texts], [i.text for i in self.texts]

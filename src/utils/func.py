@@ -1,6 +1,10 @@
+import statistics
 import threading
 import time
+from collections import defaultdict
+from contextlib import contextmanager
 from functools import wraps
+from time import perf_counter
 from typing import Callable, cast
 
 import wrapt
@@ -39,7 +43,6 @@ def decorator_get_wrapped_name(func, instance):
 @wrapt.decorator
 def logged(wrapped, instance, args, kwargs):
     import time
-    print("1")
     import sys
     sys.stdout.flush()
     start = time.perf_counter()
@@ -51,3 +54,21 @@ def logged(wrapped, instance, args, kwargs):
     delta_s = time.perf_counter() - start
     print(f"[{name}] END time={delta_s:.4f}s")
     return result
+
+
+@contextmanager
+def stat():
+    times = defaultdict(list)
+
+    @contextmanager
+    def measure(name: str):
+        start = perf_counter()
+        yield
+        times[name].append((perf_counter() - start) * 1000)
+
+    yield measure
+
+    for name, vals in times.items():
+        mean = statistics.mean(vals)
+        stdev = statistics.stdev(vals) if len(vals) > 1 else 0
+        print(f"[{name}]: #{len(vals)} time={mean:.3f}±{stdev:.3f}ms total={sum(vals):.1f}ms")

@@ -1,5 +1,6 @@
 from typing import *
 
+import shapely
 from pydantic import BaseModel, model_serializer, Field, model_validator
 
 from utils.utils import *
@@ -8,8 +9,8 @@ type num = int | float
 
 
 class BBox(BaseModel):
-    p1: Tuple[num, num]
-    p2: Tuple[num, num]
+    p1: Tuple[num, num] # left up
+    p2: Tuple[num, num] # right down
 
     @classmethod
     def of_xywh(cls, x, y, w, h):
@@ -72,6 +73,19 @@ class BBox(BaseModel):
         pad_x = self.wh[0] * pad_pct
         pad_y = self.wh[1] * pad_pct
         return BBox(p1=(self.p1[0] - pad_x, self.p1[1] - pad_y), p2=(self.p2[0] + pad_x, self.p2[1] + pad_y))
+
+    def polygon(self):
+        return shapely.box(*self.xyxy)
+
+    @classmethod
+    def of_polygon(cls, poly):
+        minx, miny, maxx, maxy = poly.bounds
+        return cls.of_xyxy(minx, miny, maxx, maxy)
+
+class LineSeg(BaseModel):
+    p1: Tuple[num, num]
+    p2: Tuple[num, num]
+
 
 
 def bbox_from_list(x):

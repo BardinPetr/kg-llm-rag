@@ -18,9 +18,14 @@ venv/
 node_modules/
 
 dataset/
+*dataset*/
 transform/
+
+!datasetgen/
 
 *.png
 *.jpg
 *.jpeg
 *.pt
+
+workspace/

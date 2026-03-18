@@ -5,8 +5,8 @@ from networkx.classes.filters import show_nodes
 from tqdm.contrib.concurrent import process_map
 
 
-def pmap(fn, arr):
-    return process_map(fn, arr, max_workers=os.cpu_count())
+def pmap(fn, arr, max_workers=os.cpu_count()):
+    return process_map(fn, arr, max_workers=max_workers)
 
 
 def fmap(x):
