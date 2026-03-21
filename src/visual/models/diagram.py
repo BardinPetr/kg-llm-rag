@@ -3,7 +3,7 @@ from typing import *
 import shapely
 from pydantic import BaseModel, model_serializer, Field, model_validator
 
-from utils.utils import *
+from src.utils.utils import *
 
 type num = int | float
 

@@ -11,10 +11,10 @@ from bidict import bidict
 from shapely import LineString, Polygon
 from shapely import Point, STRtree
 
-from utils.gui import to_rgb_or_copy, color_range_01, pt_c
-from utils.utils import imap
-from visual.analyze.ocr.model import OCRText
-from visual.analyze.structure.node import ImageGraphNode
+from src.utils.gui import to_rgb_or_copy, color_range_01, pt_c
+from src.utils.utils import imap
+from src.visual.analyze.ocr.model import OCRText
+from src.visual.analyze.structure.node import ImageGraphNode
 
 
 def uid():

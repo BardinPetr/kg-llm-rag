@@ -8,8 +8,8 @@ import numpy as np
 from more_itertools import flatten
 from shapely import LineString, Point
 
-from utils.utils import imap
-from visual.models.diagram import BBox
+from src.utils.utils import imap
+from src.visual.models.diagram import BBox
 
 
 def vis(x, **kwargs):

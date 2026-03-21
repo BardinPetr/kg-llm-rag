@@ -5,8 +5,8 @@ import cv2
 from ray import serve
 from ultralytics import YOLO
 
-from utils.models import resolve_model, Model, DevName
-from visual.analyze.detection.model import DetectorObject, parse_yolo, DetectorObjectType
+from src.utils.models import resolve_model, Model, DevName
+from src.visual.analyze.detection.model import DetectorObject, parse_yolo, DetectorObjectType
 
 DETECTOR_THRESHOLD = {
     DetectorObjectType.NODE: 0.5,

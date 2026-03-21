@@ -3,8 +3,8 @@ from typing import List
 
 from pydantic import BaseModel
 
-from utils.utils import imap
-from visual.models.diagram import BBox
+from src.utils.utils import imap
+from src.visual.models.diagram import BBox
 
 
 class DetectorObjectType(IntEnum):

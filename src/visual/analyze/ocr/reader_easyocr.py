@@ -5,8 +5,8 @@ from easyocr import Reader
 from ray import serve
 from rich import print
 
-from visual.analyze.ocr.model import OCROutput, OCRText
-from visual.models.diagram import BBox
+from src.visual.analyze.ocr.model import OCROutput, OCRText
+from src.visual.models.diagram import BBox
 
 
 @serve.deployment(ray_actor_options={"num_cpus": 0.1, "num_gpus": 0.2})

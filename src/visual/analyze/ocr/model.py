@@ -4,7 +4,7 @@ from typing import List, Tuple
 import numpy as np
 from pydantic import BaseModel
 
-from visual.models.diagram import BBox
+from src.visual.models.diagram import BBox
 
 
 class OCRText(BaseModel):
