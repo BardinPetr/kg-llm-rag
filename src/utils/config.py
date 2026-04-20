@@ -10,11 +10,14 @@ class LLMCreds(BaseModel):
     url: str
     token: str
     model: str
+    provider: str
     props: Dict[str, Any]
+    type: str = "chat"
 
 class LLMConfig(BaseModel):
     provider: str
     model: str
+    type: str = "chat"
     props: Dict[str, Any] = Field(default_factory=dict)
 
 

@@ -29,3 +29,7 @@ transform/
 *.pt
 
 workspace/
+
+ccache/
+cache/
+.langchain.db

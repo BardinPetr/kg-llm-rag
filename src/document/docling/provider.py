@@ -1,11 +1,16 @@
-from docling.datamodel.base_models import InputFormat
+from pathlib import Path
+from typing import Callable, Optional
+
+from docling.datamodel.base_models import InputFormat, ConversionStatus
 from docling.datamodel.pipeline_options import VlmPipelineOptions, PdfPipelineOptions
 from docling.datamodel.pipeline_options_vlm_model import ApiVlmOptions, ResponseFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.pipeline.vlm_pipeline import VlmPipeline
+from docling_core.types import DoclingDocument
 from pydantic import AnyUrl
 
 from src.utils.aimodel import load_llm_conf
+from utils.func import disk_cache
 
 
 def _docling_olm():
@@ -64,3 +69,14 @@ def docling_provider(use_vlm: bool = False, use_ocr: bool = True) -> DocumentCon
     if not use_ocr: return _docling_noocr()
     if use_vlm: return _docling_olm()
     return _docling_default()
+
+
+def create_document_processor(docling: DocumentConverter, cache_dir=None) -> Callable[[str], Optional[DoclingDocument]]:
+    def _call(document_path: str | Path) -> Optional[DoclingDocument]:
+        res = docling.convert(Path(document_path))
+        if res.status != ConversionStatus.SUCCESS: return None
+        return res.document
+
+    if cache_dir is not None:
+        return disk_cache(cache_dir)(_call)
+    return _call
