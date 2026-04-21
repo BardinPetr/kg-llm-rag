@@ -2,9 +2,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import *
 
+from neomodel import UniqueProperty
+
 from utils.file import do_hash
-from workspace.extract.full.datastore.objstore import store_object
-from workspace.extract.full.neomd import KDocument
+from workspace.extract.full.neomd import KDocument, DObject
+from loguru import logger
 
 
 @dataclass
@@ -47,19 +49,31 @@ def docling_load(doc_):
     return ...
 
 
-def load_document(doc: DocumentFile):
-    doc_ref = doc.hash()
+def load_document(file: DocumentFile):
+    doc_file = DObject()
+    doc_file.content = file.content
+    try:
+        doc_file.save()
+    except UniqueProperty:
+        logger.warning(f"File {file.name} exist by content")
+        return False
 
-    store_object(doc_ref, doc.content)
     doc = KDocument(
-        ref=doc_ref,
-        name=doc.name,
-        metadata=doc.metadata
+        name=file.name,
+        metadata=file.metadata
         # TODO
-    ).save()
-    doc_id = doc.id
+    )
+    doc.save()
+    doc.original_file.connect(doc_file)
 
-    # docling_doc = docling_load(doc.content)
+def load_docling():
 
-    # doc = insert_document(doc_obj_ref)
-    # ingress_doc_by_type()
+
+
+dirr = Path("/home/petr/study/diploma/src/workspace/extract/demo")
+for i in dirr.iterdir():
+    d = DocumentFile(
+        name=i.name,
+        content=i.read_bytes()
+    )
+    load_document(d)

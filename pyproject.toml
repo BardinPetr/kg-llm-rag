@@ -83,6 +83,8 @@ dependencies = [
     "colorcet>=3.1.0",
     "cloudpickle>=3.1.2",
     "prefect[aws]>=3.6.27",
+    "boto3>=1.42.71",
+    "boto3-stubs>=1.42.92",
 ]
 
 [dependency-groups]

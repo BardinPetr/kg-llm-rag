@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import dotenv
 from pydantic import BaseModel, AnyUrl, Field
@@ -29,6 +29,14 @@ class LLMProvider(BaseModel):
 class DocumentConfig(BaseModel):
     pass
 
+class S3Config(BaseModel):
+    url: str
+    key_id: str
+    access_key: str
+    bucket: str
+
+class N4JConfig(BaseModel):
+    conn: str
 
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
@@ -44,6 +52,8 @@ class AppConfig(BaseSettings):
     # document: DocumentConfig
     providers: Dict[str, LLMProvider]
     llms: Dict[str, LLMConfig]
+    s3: Optional[S3Config] = None
+    n4j: N4JConfig
 
     @classmethod
     def settings_customise_sources(
