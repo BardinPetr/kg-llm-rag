@@ -256,7 +256,7 @@ class BaseNode(StructuredNode):
 
     @classmethod
     def get_or_create_mapped[T, K](cls: Type[T], key: str, items: Iterable[Dict]) -> Dict[K, T]:
-        data = cls.get_or_create(*items)
+        data = cls.get_or_create(*items, merge_by={'keys': [key]})
         return {i.__getattribute__(key): i for i in data}
 
     @classmethod
@@ -273,16 +273,26 @@ class IDNode(BaseNode):
     uid = UniqueIdProperty()
 
 
-class CodedNodeMixin(BaseNode):
+class CodedNode(BaseNode):
     __abstract_node__ = True
-    code = StringProperty(required=True, unique_index=True)
+    uid = StringProperty(required=True, unique_index=True)
+
+
+class DEmbeddable(BaseNode):
+    repr = StringProperty()
+    repr_embedding = ArrayProperty(
+        base_property=FloatProperty(),
+        vector_index=VectorIndex(
+            dimensions=EmbeddingService.MX_SZ,
+            similarity_function="cosine"
+        )
+    )
 
 
 ###############################
 
 
-class DObject(IDNode):
-    code = StringProperty(required=True, unique_index=True)
+class DObject(CodedNode):
     category = StringProperty()
     mime = StringProperty()
 
@@ -292,7 +302,7 @@ class DObject(IDNode):
 
     @property
     def obj_ref(self) -> Tuple[str, str]:
-        return str(self.category), str(self.code)
+        return str(self.category), str(self.uid)
 
     @property
     def content(self) -> Optional[Any]:
@@ -303,7 +313,7 @@ class DObject(IDNode):
     @content.setter
     def content(self, data: Any):
         byte_data = cloudpickle.dumps(data)
-        self.code = self.content_hash(data)
+        self.uid = self.content_hash(data)
         self._content_tmp = byte_data
 
     def pre_save(self):
@@ -327,22 +337,9 @@ class DObject(IDNode):
         try:
             return doc_file.save()
         except UniqueProperty:
-            code = cls.content_hash(data)
-            logger.debug(f"DObject exist by content hash={code}")
-            return DObject.get(code=code)
-
-
-###############################
-
-class DEmbeddable(IDNode):
-    repr = StringProperty()
-    repr_embedding = ArrayProperty(
-        base_property=FloatProperty(),
-        vector_index=VectorIndex(
-            dimensions=EmbeddingService.MX_SZ,
-            similarity_function="cosine"
-        )
-    )
+            uid = cls.content_hash(data)
+            logger.debug(f"DObject exist by content hash={uid}")
+            return DObject.get(uid=uid)
 
 
 ###############################
@@ -389,7 +386,7 @@ class BlockProcStages(StrEnum):
 ###############################
 
 
-class DDocument(DEmbeddable):
+class DDocument(IDNode, DEmbeddable):
     name = StringProperty(required=True)
     metadata = JSONProperty(ensure_ascii=False)
     stages = ArrayProperty()
@@ -400,7 +397,7 @@ class DDocument(DEmbeddable):
     blocks = RelationshipFrom("DBlock", "D_IN")
 
 
-class DBlock(DEmbeddable):
+class DBlock(IDNode, DEmbeddable):
     title = StringProperty()
     external_context = StringProperty()
     own_context = StringProperty()
@@ -432,24 +429,24 @@ class DExcelBlock(DBlock):
     pass
 
 
-class DChunk(DEmbeddable):
+class DChunk(IDNode, DEmbeddable):
     text_block = RelationshipTo[DTxtBlock](DTxtBlock, "D_IN", model=LocatedInRel)
 
 
 ###############################
 
-class KType(CodedNodeMixin):
+class KType(CodedNode):
     pass
 
 
-class KFactType(CodedNodeMixin):
+class KFactType(CodedNode):
     pass
 
 
 ###############################
 
-class KNode(BaseNode):
-    code = StringProperty(required=True, unique_index=True)
+class KNode(DEmbeddable):
+    uid = StringProperty(required=True, unique_index=True)
     described_with = RelationshipFrom("KFact", "K_SUBJ")
 
 
@@ -462,14 +459,7 @@ class KEntity(KNode):
             analyzer="russian", eventually_consistent=False
         )
     )
-    name_embedding = ArrayProperty(
-        base_property=FloatProperty(),
-        vector_index=VectorIndex(
-            dimensions=4096,  # todo
-            similarity_function="cosine"
-        )
-    )
-    mentions = RelationshipTo[DBlock](DBlock, "K_MENTION", model=MentionedInRel)  # TODO
+    mentions = RelationshipTo[DBlock](DBlock, "K_MENTION", model=MentionedInRel)
 
     def __str__(self):
         return f"ENT:{self.type}({self.name})"
@@ -485,7 +475,7 @@ class KEntity(KNode):
 class KFact(KNode):
     type = RelationshipTo[KFactType](KFactType, "K_IS")
     type_code = StringProperty()
-    proof = RelationshipTo[DBlock](DBlock, "K_PROOF", model=ProvedByRel)  # TODO
+    proof = RelationshipTo[DBlock](DBlock, "K_PROOF", model=ProvedByRel)
     subject = RelationshipTo[KNode](KNode, "K_SUBJ")
     objects = RelationshipTo[KNode](KNode, "K_OBJ")
 

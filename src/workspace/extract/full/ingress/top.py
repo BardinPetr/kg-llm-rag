@@ -13,10 +13,11 @@ from document.docling.provider import docling_provider, create_document_processo
 from utils.file import do_hash
 from workspace.extract.full.doclingtext import docling_text_only, docling_chunk
 from workspace.extract.full.doclingvisual import docling_extract_images, describe_image, ImageCategory
+from workspace.extract.full.embedservice import EmbeddingService
 from workspace.extract.full.kg_ingest import entity_dedup_ingest, fact_ingest
 from workspace.extract.full.kgextract import doc_extract_kg
 from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, DTxtBlock, DChunk, \
-    DImgBlock, DBlock, DExcelBlock, DocumentProcStages, BlockProcStages
+    DImgBlock, DBlock, DExcelBlock, DocumentProcStages, BlockProcStages, DEmbeddable, n_setup
 from workspace.extract.full.tableextract import extract_tables
 
 
@@ -90,9 +91,8 @@ def load_tables(doc: DDocument):
                 transpose=not t_descr.header_top,
                 processing=t_descr.altered
             ),
-            stages=[BlockProcStages.LOAD]
-            # repr,
-            # repr_embedding # TODO
+            stages=[BlockProcStages.LOAD],
+            repr=t_descr.context
         )
         t_block.save()
         t_block.content.connect(DObject.make(t_data))
@@ -125,22 +125,16 @@ def load_textual(doc: DDocument):
         title=summary.title,
         own_context=ddoc_md,
         metadata=dict(context=summary.context, topic=summary.topic, tags=summary.tags),
-        stages=[BlockProcStages.LOAD]
-        # repr,  from summary.context
-        # repr_embedding # TODO
+        stages=[BlockProcStages.LOAD],
+        repr = summary.context,
     )
     t_block.save()
     t_block.content.connect(DObject.make(ddoc_md))
     t_block.document.connect(doc)
 
-    doc.repr = summary.context
-    # doc.repr_embedding # TODO
 
     for chk in docling_chunk(ddoc_text):
-        t_chunk = DChunk(
-            repr=chk.text,
-            # repr_embedding # TODO
-        )
+        t_chunk = DChunk(repr=chk.text)
         t_chunk.save()
         loc = dict(
             loc_page=chk.loc_page,
@@ -150,6 +144,7 @@ def load_textual(doc: DDocument):
         t_chunk.text_block.connect(t_block, properties=loc)
 
     doc.refresh()
+    doc.repr = summary.context
     doc.stages.append(DocumentProcStages.TEXT)
     doc.save()
 
@@ -175,9 +170,8 @@ def load_visual(doc: DDocument):
                 preview=dsc.preview,
                 type=dsc.category
             ),
-            stages=[BlockProcStages.LOAD]
-            # repr,
-            # repr_embedding # TODO
+            stages=[BlockProcStages.LOAD],
+            repr=dsc.preview,
         )
         t_block.save()
         t_block.content.connect(DObject.make(dat))
@@ -226,7 +220,7 @@ def make_block_kg(blk: DBlock) -> nx.DiGraph:
     return kg
 
 
-def ingest_entities_seq(blk: DBlock):
+def ingest_entities_blocking(blk: DBlock):
     if BlockProcStages.KGIE in blk.stages: return
     entity_dedup_ingest(blk)
     blk.refresh()
@@ -241,6 +235,17 @@ def ingest_facts(blk: DBlock):
     blk.stages.append(BlockProcStages.KGIR)
     blk.save()
 
+def embed_all_blocking():
+    # to embed: DDocument, DBlock, DChunk, KFact;  skipped: KEntity
+    emb_srv = EmbeddingService()
+    to_embed = [i for i in DEmbeddable.select() if i.repr]
+    # to_embed = [i for i in DEmbeddable.select(repr_embedding__isnull=True) if i.repr]
+    logger.info(f"Embedding {len(to_embed)} documents")
+    embeddings = emb_srv.embed_all([i.repr for i in to_embed])
+    for n, emb in zip(to_embed, embeddings):
+        n.refresh()
+        n.repr_embedding = emb
+        n.save()
 
 if __name__ == "__main__":
     # n_setup()
@@ -265,9 +270,10 @@ if __name__ == "__main__":
         load_visual(i)
 
     for i in DBlock.iter():
-        i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
-        # i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
-        i.save()
+    #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
+    #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
+        # i.save()
+        pass
 
     print("KGE")
     for i in tqdm(list(DBlock.iter())):
@@ -275,8 +281,10 @@ if __name__ == "__main__":
 
     print("KGIE")
     for i in tqdm(list(DBlock.iter())):
-        ingest_entities_seq(i)
+        ingest_entities_blocking(i)
 
     print("KGIR")
     for i in tqdm(list(DBlock.iter())):
         ingest_facts(i)
+
+    embed_all_blocking()

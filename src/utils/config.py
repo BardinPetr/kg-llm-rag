@@ -38,6 +38,9 @@ class S3Config(BaseModel):
 class N4JConfig(BaseModel):
     conn: str
 
+class RedisConfig(BaseModel):
+    conn: str
+
 class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_nested_delimiter='__',
@@ -54,6 +57,7 @@ class AppConfig(BaseSettings):
     llms: Dict[str, LLMConfig]
     s3: Optional[S3Config] = None
     n4j: N4JConfig
+    redis: RedisConfig
 
     @classmethod
     def settings_customise_sources(

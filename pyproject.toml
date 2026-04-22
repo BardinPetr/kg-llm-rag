@@ -85,6 +85,7 @@ dependencies = [
     "prefect[aws]>=3.6.27",
     "boto3>=1.42.71",
     "boto3-stubs>=1.42.92",
+    "redis>=7.4.0",
 ]
 
 [dependency-groups]

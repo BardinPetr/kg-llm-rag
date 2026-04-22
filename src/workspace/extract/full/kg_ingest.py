@@ -14,7 +14,7 @@ def _names(x: Iterable[Any]) -> List[str]:
 
 
 def _code_assoc[T](x: List[T]) -> Dict[str, T]:
-    return {i.code: i for i in x}
+    return {i.uid: i for i in x}
 
 
 llm_small = load_llm_lc("gemini2fl")
@@ -44,7 +44,7 @@ def entity_dedup_ingest(d_block: DBlock):
 
     print("generating types")
     types = {i.type for i in e_nodes.values()}
-    type_map = KType.get_or_create_mapped("code", [dict(code=i) for i in types])
+    type_map = KType.get_or_create_mapped("uid", [dict(uid=i) for i in types])
 
     print("generating embeddings")
     embeds = {k: e for k, e in zip(e_delta.keys(), embs.embed_all(_names(e_delta.values())))}
@@ -52,10 +52,10 @@ def entity_dedup_ingest(d_block: DBlock):
     print("ingesting entities")
     key_to_entity = [
         dict(
-            code=KEntity.hash(v.name),
+            uid=KEntity.hash(v.name),
             type_code=v.type,
             name=v.name,
-            name_embedding=embeds[k]
+            repr_embedding=embeds[k] # TODO
         )
         for k, v in e_delta.items()
     ]
@@ -64,14 +64,14 @@ def entity_dedup_ingest(d_block: DBlock):
     for k, v in e_delta.items():
         entity_map[v.uid] = e_loaded[KEntity.hash(v.name)]
 
-    entity_map_new2old = {new.code: e_nodes[old] for old, new in entity_map.items()}
+    entity_map_new2old = {new.uid: e_nodes[old] for old, new in entity_map.items()}
 
     print("ingesting entity type & prov")
     for e in e_loaded.values():
         if not e.type:
             e.type.connect(type_map[e.type_code])
 
-        original_ent = entity_map_new2old[e.code]
+        original_ent = entity_map_new2old[e.uid]
         proof = {}
         if isinstance(d_block, DTxtBlock):
             proof = dict(
@@ -80,7 +80,7 @@ def entity_dedup_ingest(d_block: DBlock):
             )
         e.mentions.connect(d_block, properties=proof)
 
-    d_block.kg_entity_map = {k: e.code for k, e in entity_map.items()}
+    d_block.kg_entity_map = {k: e.uid for k, e in entity_map.items()}
     d_block.save()
     print("done")
 
@@ -93,18 +93,19 @@ def fact_ingest(d_block: DBlock):
 
     print("preload entities")
     entity_id_map: Dict[str, str] = d_block.kg_entity_map
-    entity_map: Dict[str, KEntity] = KEntity.select_mapped("code", entity_id_map.values())
+    entity_map: Dict[str, KEntity] = KEntity.select_mapped("uid", entity_id_map.values())
     entity_map = {int_key: entity_map[ext_key] for int_key, ext_key in entity_id_map.items()}
 
     print("generating types")
     types = {i.type for i in nodes.values()}
-    type_map = KFactType.get_or_create_mapped("code", [dict(code=i) for i in types])
+    type_map = KFactType.get_or_create_mapped("uid", [dict(uid=i) for i in types])
 
     fact_map: Dict[str, KFact] = {}
     for k, v in nodes.items():
         params = dict(
-            code=do_hash(uuid4().hex),
-            type_code=v.type
+            uid=do_hash(uuid4().hex),
+            type_code=v.type,
+            repr="" # TODO
         )
         if v.value is not None:
             f = KValFact(

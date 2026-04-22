@@ -61,7 +61,7 @@ class EDedupService:
             UNWIND range(0, size($emb) - 1) AS idx
     
             CALL db.index.vector.queryNodes(
-                'vector_index_KEntity_name_embedding',
+                'vector_index_KEntity_repr_embedding',
                 $k,
                 $emb[idx]
             ) YIELD node, score

@@ -1,0 +1,30 @@
+services:
+  n4j:
+    image: neo4j
+    volumes:
+      - n4j:/data
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+  s3:
+    image: chrislusf/seaweedfs
+    command: [ "server", "s3", "-dir=/data" ]
+    volumes:
+      - s3:/data
+    ports:
+      - "8333:8333"
+
+  valkey:
+    image: valkey/valkey
+    environment:
+      VALKEY_EXTRA_FLAGS: "--save 60 1"
+    volumes:
+      - valkey:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  n4j:
+  s3:
+  valkey:
