@@ -1,4 +1,6 @@
+from enum import StrEnum
 from typing import *
+from typing import Any, Iterator, Optional, Protocol
 
 import cloudpickle
 from loguru import logger
@@ -18,8 +20,6 @@ from workspace.extract.full.datastore.objstore import default_store
 from workspace.extract.full.embedservice import EmbeddingService
 
 neoconfig.DATABASE_URL = sys_cfg.n4j.conn
-
-from typing import Any, Iterator, Optional, Protocol
 
 
 class RelationshipManagerProtocol[T:StructuredNode](Protocol):
@@ -230,42 +230,63 @@ class RelationshipFrom(NMRF, RelationshipManagerProtocol):
 
 
 class BaseNode(StructuredNode):
-    # __abstract_node__ = True
-
-    uid = UniqueIdProperty()
+    __abstract_node__ = True
 
     @classmethod
-    def iter[T](cls: T) -> Iterable[T]:
+    def iter[T](cls: Type[T]) -> Iterable[T]:
         return cls.nodes.all()
 
     @classmethod
-    def drop_all(cls):
+    def truncate(cls):
         for i in cls.iter():
             i.delete()
 
     @classmethod
-    def select_uid[T](cls: T, uid: str) -> T:
+    def select_uid[T](cls: Type[T], uid: str) -> T:
         return cls.nodes.get(uid=uid)
 
     @classmethod
-    def select[T](cls: T, **kwargs) -> List[T]:
+    def select[T](cls: Type[T], **kwargs) -> List[T]:
         return list(cls.nodes.filter(**kwargs))
 
     @classmethod
-    def get[T](cls: T, **kwargs) -> Optional[T]:
+    def select_mapped[T, K](cls: Type[T], key: str, values: Iterable[K]) -> Dict[K, T]:
+        data = cls.select(**{f"{key}__in": list(set(values))})
+        return {i.__getattribute__(key): i for i in data}
+
+    @classmethod
+    def get_or_create_mapped[T, K](cls: Type[T], key: str, items: Iterable[Dict]) -> Dict[K, T]:
+        data = cls.get_or_create(*items)
+        return {i.__getattribute__(key): i for i in data}
+
+    @classmethod
+    def get[T](cls: Type[T], **kwargs) -> Optional[T]:
         res = list(cls.nodes.filter(**kwargs))
         return res[0] if len(res) == 1 else None
+
+    @classmethod
+    def get_or_create[T](cls: Type[T], *items: List[Dict], **kwargs: dict[str, Any]) -> List[T]:
+        return super().get_or_create(*items, **kwargs)
+
+
+class IDNode(BaseNode):
+    uid = UniqueIdProperty()
+
+
+class CodedNodeMixin(BaseNode):
+    __abstract_node__ = True
+    code = StringProperty(required=True, unique_index=True)
 
 
 ###############################
 
 
-class DObject(BaseNode):
+class DObject(IDNode):
     code = StringProperty(required=True, unique_index=True)
     category = StringProperty()
     mime = StringProperty()
 
-    refs = RelationshipFrom(BaseNode, "D_SOURCE")
+    refs = RelationshipFrom(IDNode, "D_SOURCE")
 
     _content_tmp: Optional[bytes] = None
 
@@ -313,7 +334,7 @@ class DObject(BaseNode):
 
 ###############################
 
-class DEmbeddable(BaseNode):
+class DEmbeddable(IDNode):
     repr = StringProperty()
     repr_embedding = ArrayProperty(
         base_property=FloatProperty(),
@@ -336,6 +357,7 @@ class LocatedInRel(StructuredRel):
     loc_didx = StringProperty()
     loc_drefs = ArrayProperty()
 
+
 class ProvedByRel(LocatedInRel):
     overview = StringProperty(required=True)
 
@@ -346,9 +368,31 @@ class MentionedInRel(LocatedInRel):
 
 ###############################
 
+class DocumentProcStages(StrEnum):
+    FILE = "FILE"
+    DOCL = "DOCL"
+    TEXT = "TEXT"
+    TABL = "TABL"
+    IMAG = "IMAG"
+    NXKG = "NXKG"
+    KGEE = "KGEE"
+    KGRE = "KGRE"
+
+
+class BlockProcStages(StrEnum):
+    LOAD = "LOAD"
+    NXKG = "NXKG"
+    KGIE = "KGIE"
+    KGIR = "KGIR"
+
+
+###############################
+
+
 class DDocument(DEmbeddable):
     name = StringProperty(required=True)
     metadata = JSONProperty(ensure_ascii=False)
+    stages = ArrayProperty()
 
     source_file = RelationshipTo[DObject](DObject, "D_SOURCE", cardinality=One)
     docling_file = RelationshipTo[DObject](DObject, "D_DOCLING", cardinality=One)
@@ -364,6 +408,10 @@ class DBlock(DEmbeddable):
 
     document = RelationshipTo[DDocument](DDocument, "D_IN", model=LocatedInRel)
     content = RelationshipTo[DObject](DObject, "D_SOURCE", cardinality=One)
+    kgg = RelationshipTo[DObject](DObject, "D_NX", cardinality=One)
+    kg_entity_map = JSONProperty()
+
+    stages = ArrayProperty()
 
     proves = RelationshipFrom("DBlock", "K_PROOF", model=ProvedByRel)
 
@@ -380,28 +428,34 @@ class DTblBlock(DBlock):
     pass
 
 
+class DExcelBlock(DBlock):
+    pass
+
+
 class DChunk(DEmbeddable):
     text_block = RelationshipTo[DTxtBlock](DTxtBlock, "D_IN", model=LocatedInRel)
 
 
 ###############################
 
-class KType(BaseNode):
-    name = StringProperty(index=True, required=True)
+class KType(CodedNodeMixin):
+    pass
 
 
-class KFactType(KType):
-    name = StringProperty(index=True, required=True)
+class KFactType(CodedNodeMixin):
+    pass
 
 
 ###############################
 
 class KNode(BaseNode):
-    described_with = RelationshipFrom("KFact", "K_SUBJ")  # TODO
+    code = StringProperty(required=True, unique_index=True)
+    described_with = RelationshipFrom("KFact", "K_SUBJ")
 
 
 class KEntity(KNode):
-    type = RelationshipTo[KType](KType, "K_IS")  # TODO
+    type = RelationshipTo[KType](KType, "K_IS")
+    type_code = StringProperty()
     name = StringProperty(
         required=True,
         fulltext_index=FulltextIndex(
@@ -423,11 +477,16 @@ class KEntity(KNode):
     def __repr__(self):
         return str(self)
 
+    @classmethod
+    def hash(cls, name) -> str:
+        return do_hash(name)
+
 
 class KFact(KNode):
-    type = RelationshipTo[KFactType](KFactType, "K_IS")  # TODO
+    type = RelationshipTo[KFactType](KFactType, "K_IS")
+    type_code = StringProperty()
     proof = RelationshipTo[DBlock](DBlock, "K_PROOF", model=ProvedByRel)  # TODO
-    subject = RelationshipTo[KNode](KNode, "K_SUBJ")  # TODO
+    subject = RelationshipTo[KNode](KNode, "K_SUBJ")
     objects = RelationshipTo[KNode](KNode, "K_OBJ")
 
 
@@ -440,8 +499,8 @@ class KRelFact(KFact):
 
 
 class KValFact(KFact):
-    value = StringProperty(required=True)  # TODO
-    unit = StringProperty()
+    value = StringProperty(required=True)
+    unit = StringProperty()  # TODO
 
     def __str__(self):
         return f"VFT:{self.type}({self.value})"

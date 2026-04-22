@@ -5,7 +5,7 @@ from .model import *
 
 def _make_facts(e: KEntity):
     data = {i.type: i.value
-            for i in e.described_by
+            for i in e.described_with
             if isinstance(i, KValFact)}
     return json.dumps(data, ensure_ascii=False)
 

@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from textwrap import dedent
 from typing import *
 
 import networkx as nx
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from utils.aimodel import load_llm_lc
 from utils.func import disk_cache
 from utils.prompt import sprompt, uprompt
 
@@ -90,7 +92,19 @@ def llm_text_dec(x):
     return b
 
 
-def doc_extract_kg(llm, doc_txt) -> nx.DiGraph:
+def doc_extract_kg(doc_txt, external_context, llm=None) -> nx.DiGraph:
+    if llm is None:
+        llm = load_llm_lc("gemini2fl")
+
+    doc_txt = dedent(f"""
+        <EXTERNAL_CONTEXT>
+        {external_context}
+        </EXTERNAL_CONTEXT>
+        <DOCUMENT_BLOCK>
+        {doc_txt}
+        </DOCUMENT_BLOCK>"
+    """)
+
     print("extracting entities")
     kg_e_msgs = [
         SystemMessage(sprompt("kge", "entity")),

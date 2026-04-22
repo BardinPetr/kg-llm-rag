@@ -1,11 +1,11 @@
+from uuid import uuid4
+
 import networkx as nx
-from docling_core.types import DoclingDocument
 
 from utils.aimodel import load_llm_lc
 from workspace.extract.full.ededup.ededup import EDedupService
-from workspace.extract.full.embedservice import EmbeddingService
 from workspace.extract.full.graphutils import g_nodes_of_type
-from workspace.extract.full.kgextract import doc_extract_kg, EntityKG, FactKG
+from workspace.extract.full.kgextract import EntityKG, FactKG
 from workspace.extract.full.neomd import *
 
 
@@ -13,108 +13,128 @@ def _names(x: Iterable[Any]) -> List[str]:
     return [i.name for i in x]
 
 
-class KGLoader:
+def _code_assoc[T](x: List[T]) -> Dict[str, T]:
+    return {i.code: i for i in x}
 
-    def __init__(self,
-                 embs: EmbeddingService,
-                 document: DoclingDocument):
-        self._llm_small = load_llm_lc("gemini2fl")
-        self._llm = load_llm_lc("gemini2fl")
 
-        self._ededup = EDedupService(embs, self._llm_small, top_k=5)
+llm_small = load_llm_lc("gemini2fl")
+llm = load_llm_lc("gemini2")
+embs = EmbeddingService()
+ededup = EDedupService(embs, llm, top_k=5)
 
-        self._embs = embs
-        self._ddoc = document
-        self._doc_txt = self._ddoc.export_to_markdown()
 
-        self._kdoc: KDocument = None
-        self._kg: nx.DiGraph = None
+def entity_dedup_ingest(d_block: DBlock):
+    d_block.refresh()
+    kg: nx.DiGraph = d_block.kgg.get().content
 
-        # entity internal id -> KGEntity
-        self._entity_map = {}
-        # entity internal id -> KGFact
-        self._fact_map = {}
+    print("entity ingest start")
 
-    def make_base_doc(self):
-        self._kdoc = KDocument(name=self._ddoc.name)
-        self._kdoc.save()
+    e_nodes = g_nodes_of_type(kg, EntityKG)
+    e_names = _names(e_nodes.values())
+    e_keys = list(e_nodes.keys())
 
-    def make_kg(self):
-        self._kg = doc_extract_kg(self._llm, self._doc_txt)
+    entity_map = ededup.process(e_keys, e_names)  # new_id -> reuse_entity
+    print(f"DEDUP LOADED ENTITIES: {len(entity_map)}")
 
-    def ingest_entities(self):
-        e_nodes = g_nodes_of_type(self._kg, EntityKG)
-        e_names = _names(e_nodes.values())
-        e_keys = list(e_nodes.keys())
+    e_delta = {k: v
+               for k, v in e_nodes.items()
+               if k not in entity_map}
 
-        self._entity_map = self._ededup.process(e_keys, e_names)  # new_id -> reuse_entity
-        print(f"DEDUP LOADED ENTITIES: {len(self._entity_map)}")
+    print(f"NEW ENTITIES: {len(e_delta)}")
 
-        e_delta = {k: v
-                   for k, v in e_nodes.items()
-                   if k not in self._entity_map}
-        print(f"NEW ENTITIES: {len(e_delta)}")
+    print("generating types")
+    types = {i.type for i in e_nodes.values()}
+    type_map = KType.get_or_create_mapped("code", [dict(code=i) for i in types])
 
-        embeds = {k: e for k, e in zip(e_delta.keys(), self._embs.embed_all(_names(e_delta.values())))}
+    print("generating embeddings")
+    embeds = {k: e for k, e in zip(e_delta.keys(), embs.embed_all(_names(e_delta.values())))}
 
-        for k, v in e_delta.items():
-            e = KEntity(
-                type=v.type,
-                name=v.name,
-                name_embedding=embeds[k]
-            )
-
-            e.save()
-            self._entity_map[v.uid] = e
-
-    def ingest_facts(self):
-        nodes = g_nodes_of_type(self._kg, FactKG)
-
-        for k, v in nodes.items():
-            params = dict(
-                type=v.type
-            )
-            if v.value is not None:
-                f = KValFact(
-                    value=str(v.value),
-                    **params
-                )
-            else:
-                f = KRelFact(**params)
-
-            f.save()
-            self._fact_map[k] = f
-
-        total_map = {**self._fact_map, **self._entity_map}
-
-        for nsi, ndi, typ in self._kg.edges(data="data"):
-            try:
-                src, dst = self._kg.nodes[nsi]['data'], self._kg.nodes[ndi]['data']
-            except KeyError:
-                continue
-
-            src_n, dst_n = total_map[nsi], total_map[ndi]
-            try:
-                match src, dst, typ:
-                    case EntityKG(), FactKG(), "OWNS":
-                        dst_n.source.connect(src_n)
-                    case FactKG(), EntityKG(), "POINTS":
-                        src_n.source.connect(dst_n)
-                    case FactKG(), FactKG(), "OWNS":
-                        src_n.targets.connect(dst_n)
-                    case _:
-                        pass
-            except Exception as ex:
-                print("fail:", src.uid, "->", dst.uid, "--", ex)
-
-    # TODO
-    def encode_proof(self, doc_pos):
-        m = KMention(
-
+    print("ingesting entities")
+    key_to_entity = [
+        dict(
+            code=KEntity.hash(v.name),
+            type_code=v.type,
+            name=v.name,
+            name_embedding=embeds[k]
         )
-        m.save()
-        return m
+        for k, v in e_delta.items()
+    ]
+    e_loaded = _code_assoc(KEntity.get_or_create(*key_to_entity))
 
-    # TODO
-    def ingest_docstrutcure(self):
-        pass
+    print("ingesting entity type")
+    for e in e_loaded.values():
+        if not e.type:
+            e.type.connect(type_map[e.type_code])
+
+    for k, v in e_delta.items():
+        entity_map[v.uid] = e_loaded[KEntity.hash(v.name)]
+
+    d_block.kg_entity_map = {k: e.code for k, e in entity_map.items()}
+    d_block.save()
+    print("done")
+
+
+def fact_ingest(d_block: DBlock):
+    print("fact ingest start")
+    d_block.refresh()
+    kg: nx.DiGraph = d_block.kgg.get().content
+    nodes = g_nodes_of_type(kg, FactKG)
+
+    print("preload entities")
+    entity_id_map: Dict[str, str] = d_block.kg_entity_map
+    entity_map: Dict[str, KEntity] = KEntity.select_mapped("code", entity_id_map.values())
+    entity_map = {int_key: entity_map[ext_key] for int_key, ext_key in entity_id_map.items()}
+
+    print("generating types")
+    types = {i.type for i in nodes.values()}
+    type_map = KFactType.get_or_create_mapped("code", [dict(code=i) for i in types])
+
+    fact_map: Dict[str, KFact] = {}
+    for k, v in nodes.items():
+        params = dict(
+            code=do_hash(uuid4().hex),
+            type_code=v.type
+        )
+        if v.value is not None:
+            f = KValFact(
+                value=str(v.value),
+                **params
+            )
+        else:
+            f = KRelFact(**params)
+
+        f.save()
+        fact_map[k] = f
+
+    print("ingesting fact type")
+    for e in fact_map.values():
+        if not e.type:
+            e.type.connect(type_map[e.type_code])
+
+    print("ingesting fact connections")
+    total_map = {**fact_map, **entity_map}
+    for nsi, ndi, typ in kg.edges(data="data"):
+        try:
+            src, dst = kg.nodes[nsi]['data'], kg.nodes[ndi]['data']
+        except KeyError:
+            continue
+
+        src_n, dst_n = total_map[nsi], total_map[ndi]
+        try:
+            match src, typ, dst:
+                case EntityKG(), "OWNS", FactKG():
+                    # dst is describing src;  dst is fact, src is subject
+                    dst_n.subject.connect(src_n)
+                case FactKG(), "OWNS", FactKG():
+                    # dst describes src;  dst is fact, src is subject
+                    dst_n.subject.connect(src_n)
+                case FactKG(), "POINTS", EntityKG():
+                    # dst is used to describe something via src;  src is fact, dst is object
+                    src_n.objects.connect(dst_n)
+                case _:
+                    pass
+        except Exception as ex:
+            print("fail:", src.uid, "->", dst.uid, "--", ex)
+
+    d_block.save()
+    print("done")

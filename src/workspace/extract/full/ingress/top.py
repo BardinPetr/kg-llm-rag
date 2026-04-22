@@ -3,17 +3,20 @@ from io import BytesIO
 from pathlib import Path
 from typing import *
 
-from docling_core.transforms.chunker import HybridChunker
+import networkx as nx
 from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 from loguru import logger
+from tqdm import tqdm
 
 from document.docling.provider import docling_provider, create_document_processor
 from utils.file import do_hash
 from workspace.extract.full.doclingtext import docling_text_only, docling_chunk
-from workspace.extract.full.doclingvisual import docling_extract_images, describe_image
-from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, n_cls, DTxtBlock, DChunk, \
-    DImgBlock
+from workspace.extract.full.doclingvisual import docling_extract_images, describe_image, ImageCategory
+from workspace.extract.full.kg_ingest import entity_dedup_ingest, fact_ingest
+from workspace.extract.full.kgextract import doc_extract_kg
+from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, DTxtBlock, DChunk, \
+    DImgBlock, DBlock, DExcelBlock, DocumentProcStages, BlockProcStages
 from workspace.extract.full.tableextract import extract_tables
 
 
@@ -42,7 +45,8 @@ def load_document(file: DocumentFile):
 
     doc = DDocument(
         name=file.name,
-        metadata=file.metadata
+        metadata=file.metadata,
+        stages=[DocumentProcStages.FILE]
     )
     doc.save()
     doc.source_file.connect(doc_file)
@@ -63,14 +67,18 @@ def load_docling(doc: DDocument) -> DoclingDocument:
     d_doc = ddp(d_content)
 
     doc.refresh()
+    doc.stages.append(DocumentProcStages.DOCL)
     doc.docling_file.connect(DObject.make(d_doc))
     doc.save()
     return d_doc
 
 
 def load_tables(doc: DDocument):
+    if DocumentProcStages.TABL in doc.stages: return
+
     logger.info(f"Extracting tables from {doc.name}")
     ddoc: DoclingDocument = load_docling(doc)
+
     tables = extract_tables(ddoc)
 
     logger.info(f"{doc.name}: detected {len(tables)} table nodes")
@@ -82,6 +90,7 @@ def load_tables(doc: DDocument):
                 transpose=not t_descr.header_top,
                 processing=t_descr.altered
             ),
+            stages=[BlockProcStages.LOAD]
             # repr,
             # repr_embedding # TODO
         )
@@ -97,24 +106,35 @@ def load_tables(doc: DDocument):
         )
         t_block.document.connect(doc, loc)
 
+    doc.refresh()
+    doc.stages.append(DocumentProcStages.TABL)
+    doc.save()
+
 
 def load_textual(doc: DDocument):
+    if DocumentProcStages.TEXT in doc.stages: return
+
     logger.info(f"{doc.name}: Document text base analysis")
     ddoc: DoclingDocument = load_docling(doc)
+    doc.refresh()
 
     summary, ddoc_text = docling_text_only(ddoc)
     ddoc_md = ddoc_text.export_to_markdown()
 
     t_block = DTxtBlock(
         title=summary.title,
-        own_context=summary.context,
-        metadata=dict(topic=summary.topic, tags=summary.tags),
+        own_context=ddoc_md,
+        metadata=dict(context=summary.context, topic=summary.topic, tags=summary.tags),
+        stages=[BlockProcStages.LOAD]
         # repr,  from summary.context
         # repr_embedding # TODO
     )
     t_block.save()
     t_block.content.connect(DObject.make(ddoc_md))
     t_block.document.connect(doc)
+
+    doc.repr = summary.context
+    # doc.repr_embedding # TODO
 
     for chk in docling_chunk(ddoc_text):
         t_chunk = DChunk(
@@ -129,8 +149,14 @@ def load_textual(doc: DDocument):
         )
         t_chunk.text_block.connect(t_block, properties=loc)
 
+    doc.refresh()
+    doc.stages.append(DocumentProcStages.TEXT)
+    doc.save()
+
 
 def load_visual(doc: DDocument):
+    if DocumentProcStages.IMAG in doc.stages: return
+
     logger.info(f"{doc.name}: Document image analysis")
     ddoc: DoclingDocument = load_docling(doc)
 
@@ -140,6 +166,8 @@ def load_visual(doc: DDocument):
     logger.info(f"{doc.name}: detected {len(im_data)} table nodes")
 
     for dat, dsc in zip(im_data, im_descr):
+        if not dsc: continue
+        if dsc.category == ImageCategory.DROP: continue
         t_block = DImgBlock(
             title=dsc.title,
             own_context=dsc.content,
@@ -147,6 +175,7 @@ def load_visual(doc: DDocument):
                 preview=dsc.preview,
                 type=dsc.category
             ),
+            stages=[BlockProcStages.LOAD]
             # repr,
             # repr_embedding # TODO
         )
@@ -160,12 +189,65 @@ def load_visual(doc: DDocument):
         )
         t_block.document.connect(doc, loc)
 
+    doc.refresh()
+    doc.stages.append(DocumentProcStages.IMAG)
+    doc.save()
+
+
+def make_table_kg(doc: DExcelBlock) -> nx.DiGraph:
+    return None
+
+
+def make_block_kg(blk: DBlock) -> nx.DiGraph:
+    if kg := blk.kgg.get_or_none(): return kg
+
+    logger.info(f"KG ex: block {type(blk).__name__} '{blk.title[:25]}...'")
+
+    if isinstance(blk, DTxtBlock) or isinstance(blk, DImgBlock):
+        doc_input = str(blk.own_context)
+    elif isinstance(blk, DTblBlock):
+        t_ddoc: DoclingDocument = blk.content.get().content
+        doc_input = t_ddoc.export_to_markdown()
+    elif isinstance(blk, DExcelBlock):
+        return make_table_kg(blk)
+    else:
+        raise Exception("unknown block type")
+
+    external_context = blk.document.get().repr
+
+    kg = doc_extract_kg(doc_input, external_context)
+
+    blk.refresh()
+    blk.stages.append(BlockProcStages.NXKG)
+    blk.kgg.connect(DObject.make(kg))
+    blk.save()
+
+    logger.info(f"KG ex done: block {blk.title[:25]}...")
+    return kg
+
+
+def ingest_entities_seq(blk: DBlock):
+    if BlockProcStages.KGIE in blk.stages: return
+    entity_dedup_ingest(blk)
+    blk.refresh()
+    blk.stages.append(BlockProcStages.KGIE)
+    blk.save()
+
+
+def ingest_facts(blk: DBlock):
+    if BlockProcStages.KGIR in blk.stages: return
+    fact_ingest(blk)
+    blk.refresh()
+    blk.stages.append(BlockProcStages.KGIR)
+    blk.save()
+
+
 if __name__ == "__main__":
     # n_setup()
-    n_cls(all=True)
+    # n_cls(all=True)
 
     docs = []
-    dirr = Path("/home/petr/study/diploma/src/workspace/extract/demo")
+    dirr = Path("/home/petr/study/diploma/src/workspace/extract/demo2")
     for i in dirr.iterdir():
         d = DocumentFile(
             name=i.name,
@@ -181,3 +263,20 @@ if __name__ == "__main__":
         load_tables(i)
         load_textual(i)
         load_visual(i)
+
+    for i in DBlock.iter():
+        i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
+        # i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
+        i.save()
+
+    print("KGE")
+    for i in tqdm(list(DBlock.iter())):
+        make_block_kg(i)
+
+    print("KGIE")
+    for i in tqdm(list(DBlock.iter())):
+        ingest_entities_seq(i)
+
+    print("KGIR")
+    for i in tqdm(list(DBlock.iter())):
+        ingest_facts(i)
