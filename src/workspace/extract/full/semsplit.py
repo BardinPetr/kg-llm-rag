@@ -225,3 +225,43 @@ def semantic_chunk(doc: DoclingDocument) -> SemanticDocument:
             "unexpected_nodes": sorted(unexpected),
         },
     )
+
+""
+""""""""""""""""""""
+
+from docling_core.types.doc import TextItem, TableItem
+
+
+def text_preview(txt, max_preview = 60):
+    preview = txt.replace("\n", " ").strip()
+    if len(preview) > 2 * max_preview:
+        preview = preview[:max_preview] + "<...>" + preview[-max_preview//2:]
+    return f'"{preview}"'
+
+lines: List[str] = []
+
+for ix, (item, level) in enumerate(doc.ibeerate_items(with_groups=True, traverse_pictures=True)):
+    indent = "  " * level
+
+    if isinstance(item, TextItem):
+        preview = text_preview(item.text)
+
+    elif isinstance(item, TableItem):
+        try:
+            header = [c.text for c in item.data.grid[0]]
+            first_col = [r[0].text for r in item.data.grid[1:6]]
+            first_row = [c.text for c in item.data.grid[1]] if len(item.data.grid) > 1 else "..."
+            preview = f"header={header}; first_col_sample={first_col}; first_row_sample={first_row}"
+        except Exception:
+            preview = "(table — no preview)"
+
+    elif isinstance(item, PictureItem):
+        preview = f"(image: caption: '{item.meta.summary.text}'"
+
+    else:
+        preview = text_preview(doc.export_to_markdown(from_element=ix, to_element=ix+1))
+
+    lines.append(f"{ix:} | {item.label.value} | lvl={level} | {preview}")
+
+preview_lines = "\n".join(lines)
+print(preview_lines)

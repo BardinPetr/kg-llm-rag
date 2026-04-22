@@ -62,7 +62,15 @@ def _docling_noocr():
 
 
 def _docling_default():
-    return DocumentConverter()
+    pipeline_options = PdfPipelineOptions(
+        generate_picture_images=True
+    )
+    return DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_options=pipeline_options
+            )
+        })
 
 
 def docling_provider(use_vlm: bool = False, use_ocr: bool = True) -> DocumentConverter:
@@ -73,7 +81,7 @@ def docling_provider(use_vlm: bool = False, use_ocr: bool = True) -> DocumentCon
 
 def create_document_processor(docling: DocumentConverter, cache_dir=None) -> Callable[[str], Optional[DoclingDocument]]:
     def _call(document_path: str | Path) -> Optional[DoclingDocument]:
-        res = docling.convert(Path(document_path))
+        res = docling.convert(document_path)
         if res.status != ConversionStatus.SUCCESS: return None
         return res.document
 
