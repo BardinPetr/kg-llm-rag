@@ -327,11 +327,14 @@ class DEmbeddable(BaseNode):
 ###############################
 
 class LocatedInRel(StructuredRel):
-    LOC_TYP = {"char": "char", "dloc": "dloc"}
+    LOC_TYP = {"char": "char", "line": "line", "page": "page"}
+    loc_page = IntegerProperty()
     loc_begin = IntegerProperty()
     loc_end = IntegerProperty()
     loc_type = StringProperty(choices=LOC_TYP)
-
+    loc_bind = StringProperty()
+    loc_didx = StringProperty()
+    loc_drefs = ArrayProperty()
 
 class ProvedByRel(LocatedInRel):
     overview = StringProperty(required=True)

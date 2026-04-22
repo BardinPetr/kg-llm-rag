@@ -3,13 +3,14 @@ from io import BytesIO
 from pathlib import Path
 from typing import *
 
+from docling_core.transforms.chunker import HybridChunker
 from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 from loguru import logger
 
 from document.docling.provider import docling_provider, create_document_processor
 from utils.file import do_hash
-from workspace.extract.full.doclingtext import docling_text_only
+from workspace.extract.full.doclingtext import docling_text_only, docling_chunk
 from workspace.extract.full.doclingvisual import docling_extract_images, describe_image
 from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, n_cls, DTxtBlock, DChunk, \
     DImgBlock
@@ -73,7 +74,7 @@ def load_tables(doc: DDocument):
     tables = extract_tables(ddoc)
 
     logger.info(f"{doc.name}: detected {len(tables)} table nodes")
-    for t_descr, t_data in tables:
+    for t_descr, t_prov, t_data in tables:
         t_block = DTblBlock(
             title=t_descr.title,
             own_context=t_descr.context,
@@ -88,9 +89,11 @@ def load_tables(doc: DDocument):
         t_block.content.connect(DObject.make(t_data))
 
         loc = dict(
-            loc_begin=0,  # TODO
-            loc_end=1,
-            loc_type="char"
+            loc_page=t_prov.loc_page,
+            loc_bind=t_prov.loc_title,
+            loc_drefs=t_prov.loc_drefs,
+            loc_didx=t_prov.loc_didx,
+            loc_type="page"
         )
         t_block.document.connect(doc, loc)
 
@@ -113,16 +116,16 @@ def load_textual(doc: DDocument):
     t_block.content.connect(DObject.make(ddoc_md))
     t_block.document.connect(doc)
 
-    chunks = []  # TODO ddoc_text.chunk
-    for i in chunks:
+    for chk in docling_chunk(ddoc_text):
         t_chunk = DChunk(
-            # repr,  from summary.context
+            repr=chk.text,
             # repr_embedding # TODO
         )
+        t_chunk.save()
         loc = dict(
-            loc_begin=0,  # TODO
-            loc_end=1,
-            loc_type="char"
+            loc_page=chk.loc_page,
+            loc_drefs=chk.loc_drefs,
+            loc_type="page"
         )
         t_chunk.text_block.connect(t_block, properties=loc)
 
@@ -151,12 +154,11 @@ def load_visual(doc: DDocument):
         t_block.content.connect(DObject.make(dat))
 
         loc = dict(
-            loc_begin=dat.loc_from,  # TODO
-            loc_end=dat.loc_to,
-            loc_type="char"
+            loc_page=dat.loc_page,
+            loc_bind=dat.loc_bind,
+            loc_type="page"
         )
         t_block.document.connect(doc, loc)
-
 
 if __name__ == "__main__":
     # n_setup()

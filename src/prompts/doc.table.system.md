@@ -118,7 +118,7 @@ Return a **JSON array** of objects, each strictly matching this schema:
 ---
 
 ## EXAMPLE — Multi-row header normalization
-
+ 
 **Input header (2 rows):**
 ```html
 <tr>
