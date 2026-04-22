@@ -359,7 +359,7 @@ class LocatedInRel(StructuredRel):
 
 
 class ProvedByRel(LocatedInRel):
-    overview = StringProperty(required=True)
+    overview = StringProperty()
 
 
 class MentionedInRel(LocatedInRel):

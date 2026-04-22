@@ -61,13 +61,24 @@ def entity_dedup_ingest(d_block: DBlock):
     ]
     e_loaded = _code_assoc(KEntity.get_or_create(*key_to_entity))
 
-    print("ingesting entity type")
+    for k, v in e_delta.items():
+        entity_map[v.uid] = e_loaded[KEntity.hash(v.name)]
+
+    entity_map_new2old = {new.code: e_nodes[old] for old, new in entity_map.items()}
+
+    print("ingesting entity type & prov")
     for e in e_loaded.values():
         if not e.type:
             e.type.connect(type_map[e.type_code])
 
-    for k, v in e_delta.items():
-        entity_map[v.uid] = e_loaded[KEntity.hash(v.name)]
+        original_ent = entity_map_new2old[e.code]
+        proof = {}
+        if isinstance(d_block, DTxtBlock):
+            proof = dict(
+                loc_begin=original_ent.ref_pos,
+                loc_type="char"
+            )
+        e.mentions.connect(d_block, properties=proof)
 
     d_block.kg_entity_map = {k: e.code for k, e in entity_map.items()}
     d_block.save()
@@ -106,6 +117,16 @@ def fact_ingest(d_block: DBlock):
         f.save()
         fact_map[k] = f
 
+        proof = {}
+        if isinstance(d_block, DTxtBlock):
+            proof = dict(
+                overview=str(d_block.own_context)[:250],
+                loc_begin=v.ref_pos,
+                loc_type="char"
+            )
+        # TODO improve for other types
+        f.proof.connect(d_block, properties=proof)
+
     print("ingesting fact type")
     for e in fact_map.values():
         if not e.type:
@@ -138,3 +159,7 @@ def fact_ingest(d_block: DBlock):
 
     d_block.save()
     print("done")
+
+
+def ingest_kg_provenance(d_block: DBlock):
+    pass
