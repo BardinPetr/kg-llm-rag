@@ -61,6 +61,8 @@ Assign a concise, descriptive title to each table:
 
 ### STEP 7 — Output Assembly
 For each reconstructed table, produce one DocumentTableBlock.
+Table must be linked with doc_part_identifier, this identifier is technical and must be placed in output,
+this identifier must be taken from string under (after) first table part in input document. 
 
 ---
 

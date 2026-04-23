@@ -6,8 +6,8 @@ import networkx as nx
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from utils.aimodel import load_llm_lc
-from utils.func import disk_cache
 from utils.prompt import sprompt, uprompt
+from workspace.extract.full.cacheservice import cached
 
 SEP = ":::"
 
@@ -32,7 +32,7 @@ from fuzzysearch import find_near_matches
 
 
 # todo: instruct llm to use only sequential strings as references
-@disk_cache("ccache")
+@cached()
 def _load_ref(ordoc, s_exc):
     s_exc = s_exc.lower()
     ref_pos = ordoc.find(s_exc)
@@ -92,7 +92,11 @@ def llm_text_dec(x):
     return b
 
 
-def doc_extract_kg(doc_txt, external_context, llm=None) -> nx.DiGraph:
+def doc_extract_kg(doc_txt,
+                   external_context,
+                   existing_ent_classes,
+                   existing_fact_classes,
+                   llm=None) -> nx.DiGraph:
     if llm is None:
         llm = load_llm_lc("gemini2fl")
 
@@ -102,13 +106,17 @@ def doc_extract_kg(doc_txt, external_context, llm=None) -> nx.DiGraph:
         </EXTERNAL_CONTEXT>
         <DOCUMENT_BLOCK>
         {doc_txt}
-        </DOCUMENT_BLOCK>"
+        </DOCUMENT_BLOCK>
     """)
 
     print("extracting entities")
     kg_e_msgs = [
         SystemMessage(sprompt("kge", "entity")),
-        HumanMessage(uprompt("kge", "entity", document=doc_txt, existing_classes=[]))
+        HumanMessage(uprompt(
+            "kge", "entity",
+            document=doc_txt,
+            existing_classes=existing_ent_classes
+        ))
     ]
     kg_e_res = llm.invoke(kg_e_msgs)
     kg_e_res_txt = llm_text_dec(kg_e_res)
@@ -116,7 +124,12 @@ def doc_extract_kg(doc_txt, external_context, llm=None) -> nx.DiGraph:
     print("extracting relation facts")
     kg_fr_msgs = [
         SystemMessage(sprompt("kge", "relfact")),
-        HumanMessage(uprompt("kge", "relfact", document=doc_txt, existing_fact_classes=[], entities=kg_e_res_txt))
+        HumanMessage(uprompt(
+            "kge", "relfact",
+            document=doc_txt,
+            existing_fact_classes=existing_fact_classes,
+            entities=kg_e_res_txt
+        ))
     ]
     kg_fr_res = llm.invoke(kg_fr_msgs)
     kg_fr_res_txt = llm_text_dec(kg_fr_res)
@@ -124,8 +137,13 @@ def doc_extract_kg(doc_txt, external_context, llm=None) -> nx.DiGraph:
     print("extracting value facts")
     kg_fv_msgs = [
         SystemMessage(sprompt("kge", "relval")),
-        HumanMessage(uprompt("kge", "relval", document=doc_txt, existing_fact_classes=[], entities=kg_e_res_txt,
-                             relation_facts=kg_fr_res_txt))
+        HumanMessage(uprompt(
+            "kge", "relval",
+            document=doc_txt,
+            existing_fact_classes=existing_fact_classes,
+            entities=kg_e_res_txt,
+            relation_facts=kg_fr_res_txt
+        ))
     ]
     kg_fv_res = llm.invoke(kg_fv_msgs)
     kg_fv_res_txt = llm_text_dec(kg_fv_res)

@@ -17,7 +17,7 @@ from workspace.extract.full.embedservice import EmbeddingService
 from workspace.extract.full.kg_ingest import entity_dedup_ingest, fact_ingest
 from workspace.extract.full.kgextract import doc_extract_kg
 from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, DTxtBlock, DChunk, \
-    DImgBlock, DBlock, DExcelBlock, DocumentProcStages, BlockProcStages, DEmbeddable, n_setup
+    DImgBlock, DBlock, DocumentProcStages, BlockProcStages, DEmbeddable, KType, KFactType
 from workspace.extract.full.tableextract import extract_tables
 
 
@@ -64,8 +64,12 @@ def load_docling(doc: DDocument) -> DoclingDocument:
         logger.info(f"Docling present for {doc.name}")
         return doc.docling_file.get_or_none().content
 
-    d_content = DocumentStream(name=doc.name, stream=BytesIO(doc.source_file.get().content))
-    d_doc = ddp(d_content)
+    try:
+        d_content = DocumentStream(name=doc.name, stream=BytesIO(doc.source_file.get().content))
+        d_doc = ddp(d_content)
+    except:
+        doc.delete()
+        return None
 
     doc.refresh()
     doc.stages.append(DocumentProcStages.DOCL)
@@ -126,12 +130,11 @@ def load_textual(doc: DDocument):
         own_context=ddoc_md,
         metadata=dict(context=summary.context, topic=summary.topic, tags=summary.tags),
         stages=[BlockProcStages.LOAD],
-        repr = summary.context,
+        repr=summary.context,
     )
     t_block.save()
     t_block.content.connect(DObject.make(ddoc_md))
     t_block.document.connect(doc)
-
 
     for chk in docling_chunk(ddoc_text):
         t_chunk = DChunk(repr=chk.text)
@@ -188,10 +191,6 @@ def load_visual(doc: DDocument):
     doc.save()
 
 
-def make_table_kg(doc: DExcelBlock) -> nx.DiGraph:
-    return None
-
-
 def make_block_kg(blk: DBlock) -> nx.DiGraph:
     if kg := blk.kgg.get_or_none(): return kg
 
@@ -202,14 +201,17 @@ def make_block_kg(blk: DBlock) -> nx.DiGraph:
     elif isinstance(blk, DTblBlock):
         t_ddoc: DoclingDocument = blk.content.get().content
         doc_input = t_ddoc.export_to_markdown()
-    elif isinstance(blk, DExcelBlock):
-        return make_table_kg(blk)
+    # elif isinstance(blk, DExcelBlock):
+    #     pass
     else:
         raise Exception("unknown block type")
 
     external_context = blk.document.get().repr
 
-    kg = doc_extract_kg(doc_input, external_context)
+    ex_ecls = [i.uid for i in KType.select()]
+    ex_fcls = [i.uid for i in KFactType.select()]
+
+    kg = doc_extract_kg(doc_input, external_context, ex_ecls, ex_fcls)
 
     blk.refresh()
     blk.stages.append(BlockProcStages.NXKG)
@@ -235,6 +237,7 @@ def ingest_facts(blk: DBlock):
     blk.stages.append(BlockProcStages.KGIR)
     blk.save()
 
+
 def embed_all_blocking():
     # to embed: DDocument, DBlock, DChunk, KFact;  skipped: KEntity
     emb_srv = EmbeddingService()
@@ -246,6 +249,7 @@ def embed_all_blocking():
         n.refresh()
         n.repr_embedding = emb
         n.save()
+
 
 if __name__ == "__main__":
     # n_setup()
@@ -261,17 +265,19 @@ if __name__ == "__main__":
         k = load_document(d)
         docs.append(k)
 
+    docs2 = []
     for i in docs:
         d = load_docling(i)
+        if d: docs2.append(i)
 
-    for i in docs:
+    for i in docs2:
         load_tables(i)
         load_textual(i)
         load_visual(i)
 
     for i in DBlock.iter():
-    #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
-    #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
+        #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
+        #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
         # i.save()
         pass
 

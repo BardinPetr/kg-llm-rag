@@ -9,7 +9,7 @@ services:
 
   s3:
     image: chrislusf/seaweedfs
-    command: [ "server", "s3", "-dir=/data" ]
+    command: [ "server", "-s3" ]
     volumes:
       - s3:/data
     ports:

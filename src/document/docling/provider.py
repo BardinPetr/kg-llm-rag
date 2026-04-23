@@ -10,7 +10,7 @@ from docling_core.types import DoclingDocument
 from pydantic import AnyUrl
 
 from src.utils.aimodel import load_llm_conf
-from utils.func import disk_cache
+from workspace.extract.full.cacheservice import cached
 
 
 def _docling_olm():
@@ -79,12 +79,12 @@ def docling_provider(use_vlm: bool = False, use_ocr: bool = True) -> DocumentCon
     return _docling_default()
 
 
-def create_document_processor(docling: DocumentConverter, cache_dir=None) -> Callable[[str], Optional[DoclingDocument]]:
+def create_document_processor(docling: DocumentConverter, is_cached=False) -> Callable[[str], Optional[DoclingDocument]]:
     def _call(document_path: str | Path) -> Optional[DoclingDocument]:
         res = docling.convert(document_path)
         if res.status != ConversionStatus.SUCCESS: return None
         return res.document
 
-    if cache_dir is not None:
-        return disk_cache(cache_dir)(_call)
+    if is_cached:
+        return cached()(_call)
     return _call
