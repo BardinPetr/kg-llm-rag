@@ -54,7 +54,7 @@ def entity_dedup_ingest(d_block: DBlock):
         dict(
             uid=KEntity.hash(v.name),
             type_code=v.type,
-            name=v.name,
+            repr=v.name,
             repr_embedding=embeds[k] # TODO
         )
         for k, v in e_delta.items()
@@ -105,8 +105,9 @@ def fact_ingest(d_block: DBlock):
         params = dict(
             uid=do_hash(uuid4().hex),
             type_code=v.type,
-            repr="" # TODO
+            repr=f"{v.type}" # TODO
         )
+        print(v)
         if v.value is not None:
             f = KValFact(
                 value=str(v.value),

@@ -453,16 +453,10 @@ class KNode(DEmbeddable):
 class KEntity(KNode):
     type = RelationshipTo[KType](KType, "K_IS")
     type_code = StringProperty()
-    name = StringProperty(
-        required=True,
-        fulltext_index=FulltextIndex(
-            analyzer="russian", eventually_consistent=False
-        )
-    )
     mentions = RelationshipTo[DBlock](DBlock, "K_MENTION", model=MentionedInRel)
 
     def __str__(self):
-        return f"ENT:{self.type}({self.name})"
+        return f"ENT:{self.type_code}({self.repr[:50]})"
 
     def __repr__(self):
         return str(self)
@@ -478,6 +472,12 @@ class KFact(KNode):
     proof = RelationshipTo[DBlock](DBlock, "K_PROOF", model=ProvedByRel)
     subject = RelationshipTo[KNode](KNode, "K_SUBJ")
     objects = RelationshipTo[KNode](KNode, "K_OBJ")
+
+    def __str__(self):
+        return f"FCT:{self.type_code}({self.repr[:50]})"
+
+    def __repr__(self):
+        return str(self)
 
 
 class KRelFact(KFact):

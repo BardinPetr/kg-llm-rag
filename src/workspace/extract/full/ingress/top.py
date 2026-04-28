@@ -16,8 +16,7 @@ from workspace.extract.full.doclingvisual import docling_extract_images, describ
 from workspace.extract.full.embedservice import EmbeddingService
 from workspace.extract.full.kg_ingest import entity_dedup_ingest, fact_ingest
 from workspace.extract.full.kgextract import doc_extract_kg
-from workspace.extract.full.neomd import DObject, DDocument, DTblBlock, DTxtBlock, DChunk, \
-    DImgBlock, DBlock, DocumentProcStages, BlockProcStages, DEmbeddable, KType, KFactType
+from workspace.extract.full.neomd import *
 from workspace.extract.full.tableextract import extract_tables
 
 
@@ -161,7 +160,7 @@ def load_visual(doc: DDocument):
     im_data = docling_extract_images(ddoc)
     im_descr = [describe_image(i.data) for i in im_data]
 
-    logger.info(f"{doc.name}: detected {len(im_data)} table nodes")
+    logger.info(f"{doc.name}: detected {len(im_data)} image nodes")
 
     for dat, dsc in zip(im_data, im_descr):
         if not dsc: continue
@@ -241,8 +240,7 @@ def ingest_facts(blk: DBlock):
 def embed_all_blocking():
     # to embed: DDocument, DBlock, DChunk, KFact;  skipped: KEntity
     emb_srv = EmbeddingService()
-    to_embed = [i for i in DEmbeddable.select() if i.repr]
-    # to_embed = [i for i in DEmbeddable.select(repr_embedding__isnull=True) if i.repr]
+    to_embed = [i for i in DEmbeddable.select(repr_embedding__isnull=True) if i.repr]
     logger.info(f"Embedding {len(to_embed)} documents")
     embeddings = emb_srv.embed_all([i.repr for i in to_embed])
     for n, emb in zip(to_embed, embeddings):
@@ -253,10 +251,10 @@ def embed_all_blocking():
 
 if __name__ == "__main__":
     # n_setup()
-    # n_cls(all=True)
+    n_cls(all=True)
 
     docs = []
-    dirr = Path("/home/petr/study/diploma/src/workspace/extract/demo2")
+    dirr = Path("/home/petr/study/diploma/src/workspace/extract/full/synthdocs")
     for i in dirr.iterdir():
         d = DocumentFile(
             name=i.name,
@@ -265,21 +263,23 @@ if __name__ == "__main__":
         k = load_document(d)
         docs.append(k)
 
+    print("DCL")
     docs2 = []
     for i in docs:
         d = load_docling(i)
         if d: docs2.append(i)
 
+    print("LD")
     for i in docs2:
-        load_tables(i)
         load_textual(i)
+        load_tables(i)
         load_visual(i)
 
-    for i in DBlock.iter():
+    # for i in DBlock.iter():
         #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG]
         #     i.stages = [BlockProcStages.LOAD, BlockProcStages.NXKG, BlockProcStages.KGIE]
         # i.save()
-        pass
+        # pass
 
     print("KGE")
     for i in tqdm(list(DBlock.iter())):
