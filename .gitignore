@@ -21,8 +21,6 @@ dataset/
 *dataset*/
 transform/
 
-!datasetgen/
-
 *.png
 *.jpg
 *.jpeg
@@ -33,3 +31,4 @@ workspace/
 ccache/
 cache/
 .langchain.db
+n4j_demo/
