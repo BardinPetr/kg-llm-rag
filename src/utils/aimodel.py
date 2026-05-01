@@ -11,7 +11,7 @@ from langchain_openai.chat_models import ChatOpenAI
 from langchain_community.embeddings import DeepInfraEmbeddings
 from langchain_community.llms.deepinfra import DeepInfra
 
-from src.utils.config import LLMCreds, AppConfig
+from utils.config import LLMCreds, AppConfig
 
 load_dotenv()
 
@@ -57,6 +57,8 @@ def load_llm_lc(code: str, provider: str = None, model: str = None, **kwargs) ->
             model=model or conf.model,
             base_url=conf.url,
             api_key=conf.token,
+            max_retries=5,
+            timeout=120
         )
         langchain_conf.update(conf.props)
         langchain_conf.update(kwargs)

@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.prompts import PromptTemplate
-from openai import BaseModel
+from pydantic import BaseModel
 
-from src.utils.file import rd
+from utils.file import rd
 
 base_path = Path(__file__).parent.parent / "prompts"
 base_path = base_path.resolve()
@@ -16,7 +16,7 @@ def serialize_parameter(param: Any, indent: int = None) -> str:
         """Check if object contains any Pydantic models."""
         if isinstance(obj, BaseModel):
             return True
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, list | tuple):
             return any(contains_pydantic(item) for item in obj)
         if isinstance(obj, dict):
             return any(contains_pydantic(v) for v in obj.values())
@@ -26,7 +26,7 @@ def serialize_parameter(param: Any, indent: int = None) -> str:
         """Recursively convert Pydantic models to dicts."""
         if isinstance(obj, BaseModel):
             return obj.model_dump()
-        if isinstance(obj, (list, tuple)):
+        if isinstance(obj, list | tuple):
             return [convert_to_dict(item) for item in obj]
         if isinstance(obj, dict):
             return {k: convert_to_dict(v) for k, v in obj.items()}

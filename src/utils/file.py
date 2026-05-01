@@ -1,6 +1,5 @@
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 
@@ -15,12 +14,24 @@ def rdj(x: Path | str):
     return json.loads(rd(x))
 
 
+def rdp(x: Path | str):
+    return cloudpickle.load(open(str(x), "rb"))
+
+
 def wr(x: Path | str, data):
     if isinstance(x, str):
         x = Path(x)
     x.parent.mkdir(parents=True, exist_ok=True)
     with open(str(x), "w") as f:
         f.write(str(data))
+
+
+def wrp(x: Path | str, data):
+    if isinstance(x, str):
+        x = Path(x)
+    x.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(x), "wb") as f:
+        cloudpickle.dump(data, f)
 
 
 def wrj(x: Path | str, data):
@@ -46,6 +57,7 @@ def do_hash(value: str | bytes) -> str:
 
 
 path_re = re.compile(r'^(?:\.{0,2}/)?(?:[a-zA-Z0-9._-]+/)*[a-zA-Z0-9._-]*$')
+
 
 def anything_hash(arg) -> str:
     if isinstance(arg, Path) and arg.is_file():

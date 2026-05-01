@@ -37,6 +37,9 @@ class S3Config(BaseModel):
 
 class N4JConfig(BaseModel):
     conn: str
+    url: str
+    username: str
+    password: str
 
 class RedisConfig(BaseModel):
     conn: str
