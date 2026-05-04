@@ -3,10 +3,8 @@ from pathlib import Path
 from typing import Optional
 
 import opendataloader_pdf
-from ray import serve
 
 
-@serve.deployment(ray_actor_options={"num_cpus": 0.5})
 class PDFProcessorODL:
     def __init__(self):
         pass

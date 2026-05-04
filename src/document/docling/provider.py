@@ -9,8 +9,8 @@ from docling.pipeline.vlm_pipeline import VlmPipeline
 from docling_core.types import DoclingDocument
 from pydantic import AnyUrl
 
-from src.utils.aimodel import load_llm_conf
-from workspace.extract.full.cacheservice import cached
+from utils.aimodel import load_llm_conf
+from db.store.cacheservice import cached
 
 
 def _docling_olm():

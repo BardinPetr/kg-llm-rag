@@ -2,8 +2,6 @@ from typing import Optional, List
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from ray import serve
-from ray.serve.handle import DeploymentHandle
 
 from src.document.docling.docling_processor import PDFProcessorDocling
 from document.model.model import DocumentTables
@@ -43,9 +41,8 @@ Analyze both representations, merge split tables, and output HTML with ONLY the 
     return prompt | llm | StrOutputParser()
 
 
-@serve.deployment(ray_actor_options={"num_cpus": 0.5})
 class DocumentTableProcessor:
-    def __init__(self, docling: DeploymentHandle[PDFProcessorDocling]):
+    def __init__(self, docling):
         self._docling = docling
         self._llm = load_llm_lc("gemini3")
         self._chain = _create_chain(self._llm)

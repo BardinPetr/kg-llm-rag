@@ -3,24 +3,14 @@ from pathlib import Path
 from typing import Optional
 
 from docling_core.types import DoclingDocument
-from ray import serve
-from ray.serve.handle import DeploymentHandle
 
-from src.document.docling.docling_processor import PDFProcessorDocling, PDFProcessorDoclingVLM
+from document.other.textcheck import check_text_adequate
 from document.model.model import DocumentResult
-from document.pdf.odl_processor import PDFProcessorODL
-from src.document.table.table import DocumentTableProcessor
-from document.util.textcheck import check_text_adequate
 from src.visual.analyze.structure.linegraph import uid
 
 
-@serve.deployment(ray_actor_options={"num_cpus": 0.5})
 class DocumentProcessor:
-    def __init__(self,
-                 docling: DeploymentHandle[PDFProcessorDocling],
-                 docling_vlm: DeploymentHandle[PDFProcessorDoclingVLM],
-                 odl: DeploymentHandle[PDFProcessorODL],
-                 table: DeploymentHandle[DocumentTableProcessor]):
+    def __init__(self, docling, docling_vlm, odl, table):
         self._docling = docling
         self._docling_vlm = docling_vlm
         self._odl = odl
