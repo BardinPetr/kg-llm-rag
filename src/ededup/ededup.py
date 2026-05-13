@@ -1,3 +1,5 @@
+import json
+
 from utils.prompt import sprompt, uprompt
 from db.neo_kg import KEntity, KValFact
 from db.neo_base import cypher

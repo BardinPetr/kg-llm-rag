@@ -2,7 +2,7 @@ services:
   n4j:
     image: neo4j:latest
     volumes:
-      - ./n4j_demo:/data
+      - ./n4j_demo2:/data
     environment:
       - NEO4J_AUTH=none
       - NEO4J_PLUGINS=["graph-data-science"]

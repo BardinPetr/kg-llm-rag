@@ -31,4 +31,4 @@ workspace/
 ccache/
 cache/
 .langchain.db
-n4j_demo/
+n4j_demo*/
