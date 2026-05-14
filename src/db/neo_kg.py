@@ -1,4 +1,4 @@
-from neomodel import StringProperty, FulltextIndex
+from neomodel import StringProperty
 
 from utils.file import do_hash
 from db.neo_base import CodedNode

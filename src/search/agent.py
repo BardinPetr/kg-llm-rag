@@ -20,7 +20,7 @@ def agent():
             describe_entities,
             describe_facts,
             get_proofs,
-            path_search,
+            # path_search,
             get_type_info,
             fallback_naive_rag,
         ],

@@ -295,13 +295,4 @@ def ingest_docs(doc_paths: List[Path], clean=False):
 
     embed_all_blocking()
 
-# from utils.file import rd
-# from validate.ragdataset import KGRAGDataset, KGRAGDatasetBlock
-# dataset: KGRAGDataset = KGRAGDataset.model_validate_json(rd("/home/petr/study/diploma/src/workspace/extract/full/val/dataset/data.json"))
-# current_block: KGRAGDatasetBlock = dataset.document_blocks[1]
-# print(len(current_block.questions))
-# current_files = [Path("/home/petr/study/diploma/src/workspace/extract/full/val") / Path(i) for i in current_block.document_names]
-# print(current_files)
-# ingest_docs(current_files, False)
-
 # ingest_docs([Path("/home/petr/study/diploma/workspace/pdf/demo/complex-1.pdf")], clean=False)

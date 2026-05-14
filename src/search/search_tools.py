@@ -5,6 +5,7 @@ from db.neo_base import cypher, make_gds
 from db.neo_doc import *
 from db.neo_kg import KType, KNode, KEntity, KFact, KRelFact, KValFact
 from db.neo_rel_prop import rel_objs
+from web.event_publisher import publish_selection_event
 
 embs = EmbeddingService()
 
@@ -64,6 +65,10 @@ def _entity_search(q: List[str], top_k: int = 10) -> List[KEntity]:
     )
 
 
+def _uids(x):
+    return [i.uid for i in x]
+
+
 @tool
 def entity_search(semantic_search_queries: List[str], top_k: int = 5) -> str | List[str]:
     """
@@ -77,6 +82,7 @@ def entity_search(semantic_search_queries: List[str], top_k: int = 5) -> str | L
         return "Queries limit exceeded (>10)"
     logger.info(f"[TOOL] [semantic entity search] q={semantic_search_queries}")
     results = _entity_search(semantic_search_queries, top_k)
+    publish_selection_event(_uids(results))
     logger.info(f"[TOOL] [semantic entity search] result count = {len(results)}")
     return [str(i) for i in results]
 
@@ -93,12 +99,14 @@ def describe_entities(uids: List[str]) -> str:
     """
     if not uids: return "no input given"
     entities = KEntity.select_mapped("uid", uids)
+    publish_selection_event(entities.keys())
     logger.info(f"[TOOL] [entity describe] q={[str(i) for i in entities]}")
     result = ""
     for e in entities.values():
         facts = e.described_with
         v_facts = [str(i) for i in facts if isinstance(i, KValFact)]
         r_facts = [str(i) for i in [*e.described_with, *e.object_of] if isinstance(i, KRelFact)]
+        publish_selection_event([i.uid for i in facts if isinstance(i, KFact)])
         result += f"{e}"
         result += "\nPROPERTIES:\n"
         result += "\n".join(v_facts)
@@ -119,6 +127,7 @@ def describe_facts(uids: List[str]) -> str:
     """
     if not uids: return "no input given"
     facts = KFact.select_mapped("uid", uids)
+    publish_selection_event(facts.keys())
     logger.info(f"[TOOL] [fact describe] q={[str(i) for i in facts]}")
     result = ""
     for e in facts.values():
@@ -155,7 +164,8 @@ def entity_value_search(valfact_type_and_query: Dict[str, str]) -> Dict[str, Lis
         return " OR ".join(out)
 
     def _output_fmt(x):
-        return [(str(e), str(f)) for e, f in x]
+        publish_selection_event([i.uid for i, j in x] + [j.uid for i, j in x])
+        return dict(full_text_search_result=[(str(e), str(f)) for e, f in x])
 
     lucene = f'type_code:({_jstr(valfact_type_and_query.keys())}) AND value:({_jstr(valfact_type_and_query.values(), 0.5)})'
     logger.info(f"[TOOL] [full-text value search] q={lucene}")
@@ -172,7 +182,7 @@ def entity_value_search(valfact_type_and_query: Dict[str, str]) -> Dict[str, Lis
     logger.info(f"[TOOL] [full-text value search] cnt={len(results)}")
 
     if len(results) > 0:
-        return dict(full_text_search_result=_output_fmt(results))
+        return _output_fmt(results)
 
     q = embs.embed_all([f"{t}={v}" for t, v in valfact_type_and_query.items()])
     results = cypher(
@@ -192,7 +202,7 @@ def entity_value_search(valfact_type_and_query: Dict[str, str]) -> Dict[str, Lis
     )
 
     logger.info(f"[TOOL] [full-text value search] fallback to vector search. cnt={len(results)}")
-    return dict(full_text_search_result=_output_fmt(results))
+    return _output_fmt(results)
 
 
 """TEXTS"""
@@ -206,6 +216,7 @@ def get_proofs(node_ids: List[str]) -> Dict[str, str]:
     Returns map, where key is node uid, and value is a proof.
     """
     nodes = KNode.select_mapped("uid", node_ids)
+    publish_selection_event(_uids(nodes))
     logger.info(f"[TOOL] [proofs] q={[str(i) for i in nodes]}")
     res = {}
     for uid, i in nodes.items():
@@ -265,7 +276,7 @@ def fallback_naive_rag(queries: List[str]) -> List[Dict]:
 """SUBGRAPH"""
 
 
-# @tool
+@tool
 def path_search(node_a_uid: str, node_b_uid: str, allowed_entity_types: List[str], allowed_relation_types: List[str]):
     """
     Conduct multiple k-shortest paths search between two nodes.
@@ -302,6 +313,7 @@ def path_search(node_a_uid: str, node_b_uid: str, allowed_entity_types: List[str
         )
 
         nodes = list(set(j['uid'] for i in res['path'] for j in i.nodes))
+        publish_selection_event(nodes)
         node_data = KNode.select_mapped("uid", nodes)
 
         g = nx.Graph()

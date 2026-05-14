@@ -120,9 +120,6 @@ class DocumentProcStages(StrEnum):
     TEXT = "TEXT"
     TABL = "TABL"
     IMAG = "IMAG"
-    NXKG = "NXKG"
-    KGEE = "KGEE"
-    KGRE = "KGRE"
 
 
 class BlockProcStages(StrEnum):
