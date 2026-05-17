@@ -31,7 +31,6 @@ class FactKG:
 from fuzzysearch import find_near_matches
 
 
-# todo: instruct llm to use only sequential strings as references
 @cached()
 def _load_ref(ordoc, s_exc):
     s_exc = s_exc.lower()

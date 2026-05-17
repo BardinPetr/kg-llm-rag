@@ -2,7 +2,7 @@ services:
   n4j:
     image: neo4j:latest
     volumes:
-      - ./n4j_demo2:/data
+      - ./n4j_demo:/data
     environment:
       - NEO4J_AUTH=none
       - NEO4J_PLUGINS=["graph-data-science"]
@@ -26,6 +26,13 @@ services:
       - valkey:/data
     ports:
       - "6379:6379"
+
+  worker:
+    build: .
+    depends_on:
+      - valkey
+      - s3
+      - n4j
 
 volumes:
   n4j:

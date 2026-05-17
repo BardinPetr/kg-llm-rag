@@ -16,12 +16,13 @@ from db.neo_kg import KNode, KEntity, KRelFact, KValFact
 from load.top import DocumentFile
 from tasks.load_task import execute_load_task
 from tasks.search_task import execute_query_task
+from utils.config import sys_cfg
 
 event_buffers = {}
 
 
 async def redis_listener():
-    r = AsyncRedis(host="localhost", port=6379, db=0, decode_responses=True)
+    r = AsyncRedis.from_url(f'{sys_cfg.redis.conn}/0', decode_responses=True)
     pubsub = r.pubsub()
     await pubsub.subscribe("agent_events")
     try:
@@ -143,6 +144,11 @@ def node_dto(i):
                     subject=_subj(i),
                     value=i.value
                 )
+            case DBlock():
+                par = dict(
+                    name=i.title[:20] + "...",
+                    repr=i.title + "...",
+                )
     except:
         pass
 
@@ -153,6 +159,7 @@ def node_dto(i):
         repr=pre.get("repr"),
         type_code=pre.get("type_code"),
     )
+    if 'Block' in base['node_class']: base['node_class'] = "DBlock"
     base.update(par)
     return base
 
@@ -162,11 +169,20 @@ async def get_graph():
     n = IDNode.select() + KNode.select()
     n = [i for i in n if isinstance(i, KNode | DDocument | DBlock)]
     nodes = {i.uid: node_dto(i) for i in n}
+    # for i in n:
+    #     print(i.uid, i)
     conns = cypher("""
-        MATCH (a)-[x:K_SUBJ|K_OBJ]-(b)
+        MATCH (a)-[x:K_SUBJ|K_OBJ|K_PROOF|D_IN]-(b)
         WHERE a.uid in $allowed and b.uid in $allowed
         RETURN DISTINCT a.uid, b.uid, type(x)
     """, params=dict(allowed=list(nodes.keys())))
+    use = set()
+    for i, j, _ in conns:
+        use.add(i)
+        use.add(j)
+    nodes = {i: j for i, j in nodes.items() if i in use}
+    # for i in conns:
+    #     print(i)
     return dict(nodes=nodes, connections=conns)
 
 

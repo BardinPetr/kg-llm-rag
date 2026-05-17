@@ -32,3 +32,4 @@ ccache/
 cache/
 .langchain.db
 n4j_demo*/
+config.yaml

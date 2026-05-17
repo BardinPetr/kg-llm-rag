@@ -52,7 +52,7 @@ def load_document(file: DocumentFile):
 
 
 ddp = docling_provider(use_vlm=False)
-ddp = create_document_processor(ddp, "./ccache")
+ddp = create_document_processor(ddp, True)
 
 
 def load_docling(doc: DDocument) -> DoclingDocument:
@@ -82,7 +82,7 @@ def load_tables(doc: DDocument):
     ddoc: DoclingDocument = load_docling(doc)
 
     tables = extract_tables(ddoc)
-
+    res = []
     logger.info(f"{doc.name}: detected {len(tables)} table nodes")
     for t_descr, t_prov, t_data in tables:
         t_block = DTblBlock(
@@ -97,6 +97,7 @@ def load_tables(doc: DDocument):
         )
         t_block.save()
         t_block.content.connect(DObject.make(t_data))
+        res.append(t_block.uid)
 
         loc = dict(
             loc_page=t_prov.loc_page,
@@ -110,6 +111,7 @@ def load_tables(doc: DDocument):
     doc.refresh()
     doc.stages.append(DocumentProcStages.TABL)
     doc.save()
+    return res
 
 
 def load_textual(doc: DDocument):
@@ -122,6 +124,7 @@ def load_textual(doc: DDocument):
     summary, ddoc_text = docling_text_only(ddoc)
     ddoc_md = ddoc_text.export_to_markdown()
 
+    res = []
     t_block = DTxtBlock(
         title=summary.title,
         own_context=ddoc_md,
@@ -132,6 +135,7 @@ def load_textual(doc: DDocument):
     t_block.save()
     t_block.content.connect(DObject.make(ddoc_md))
     t_block.document.connect(doc)
+    res.append(t_block.uid)
 
     for chk in docling_chunk(ddoc_text):
         t_chunk = DChunk(repr=chk.text)
@@ -147,6 +151,7 @@ def load_textual(doc: DDocument):
     doc.repr = summary.context
     doc.stages.append(DocumentProcStages.TEXT)
     doc.save()
+    return res
 
 
 def load_visual(doc: DDocument):
@@ -160,6 +165,7 @@ def load_visual(doc: DDocument):
 
     logger.info(f"{doc.name}: detected {len(im_data)} image nodes")
 
+    res = []
     for dat, dsc in zip(im_data, im_descr):
         if not dsc: continue
         if dsc.category == ImageCategory.DROP: continue
@@ -175,6 +181,7 @@ def load_visual(doc: DDocument):
         )
         t_block.save()
         t_block.content.connect(DObject.make(dat))
+        res.append(t_block.uid)
 
         loc = dict(
             loc_page=dat.loc_page,
@@ -186,7 +193,7 @@ def load_visual(doc: DDocument):
     doc.refresh()
     doc.stages.append(DocumentProcStages.IMAG)
     doc.save()
-
+    return res
 
 def make_block_kg(blk: DBlock) -> nx.DiGraph:
     if kg := blk.kgg.get_or_none(): return kg
@@ -198,8 +205,6 @@ def make_block_kg(blk: DBlock) -> nx.DiGraph:
     elif isinstance(blk, DTblBlock):
         t_ddoc: DoclingDocument = blk.content.get().content
         doc_input = t_ddoc.export_to_markdown()
-    # elif isinstance(blk, DExcelBlock):
-    #     pass
     else:
         raise Exception("unknown block type")
 
@@ -219,7 +224,7 @@ def make_block_kg(blk: DBlock) -> nx.DiGraph:
     return kg
 
 
-def ingest_entities_blocking(blk: DBlock):
+def ingest_entities(blk: DBlock):
     if BlockProcStages.KGIE in blk.stages: return
     entity_dedup_ingest(blk)
     blk.refresh()
@@ -235,7 +240,7 @@ def ingest_facts(blk: DBlock):
     blk.save()
 
 
-def embed_all_blocking():
+def embed_all():
     # to embed: DDocument, DBlock, DChunk, KFact;  skipped: KEntity
     emb_srv = EmbeddingService()
     to_embed = [i for i in DEmbeddable.select(repr_embedding__isnull=True) if i.repr]
@@ -285,7 +290,7 @@ def ingest_docs(doc_paths: List[Path], clean=False):
 
     logger.info("Starting KG entity ingestion")
     for i in tqdm(list(DBlock.iter())):
-        ingest_entities_blocking(i)
+        ingest_entities(i)
     logger.info("KG entity ingestion done")
 
     logger.info("Starting KG fact ingestion")
@@ -293,6 +298,11 @@ def ingest_docs(doc_paths: List[Path], clean=False):
         ingest_facts(i)
     logger.info("KG fact ingestion done")
 
-    embed_all_blocking()
+    embed_all()
 
-# ingest_docs([Path("/home/petr/study/diploma/workspace/pdf/demo/complex-1.pdf")], clean=False)
+    for i in docs2:
+        i.refresh()
+        i.stages.append(DocumentProcStages.KGLD)
+        i.save()
+
+# ingest_docs(list(Path("/home/petr/study/diploma/src/validate/dataset/pdf/62276207-cab7-49e6-9e06-6250d101144e").iterdir()), clean=True)

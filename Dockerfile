@@ -22,10 +22,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-install-project
-#RUN --mount=type=bind,src=/home/petr/.cache/uv,dst=/root/.cache/uv uv sync --frozen --no-install-project
 
 COPY src/ ./
 
 RUN uv sync --frozen
 
-#CMD ["uv", "run", "celery", "-A", "your_app.celery", "worker", "--loglevel=info", "--pool=gevent", "--concurrency=10"]
+CMD ["uv", "run", "celery", "-A", "tasks.clq:clq", "worker", "--loglevel=info", "--pool=gevent", "--concurrency=50"]

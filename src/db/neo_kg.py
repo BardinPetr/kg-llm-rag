@@ -67,7 +67,7 @@ class KRelFact(KFact):
 
 class KValFact(KFact):
     value = StringProperty(required=True)
-    unit = StringProperty()  # TODO
+    unit = StringProperty()
 
     def __str__(self):
         return f"{self.uid}:{self.type_code}=`{self.value}`{self.unit or ''}"

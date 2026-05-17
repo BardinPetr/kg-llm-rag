@@ -56,7 +56,7 @@ def entity_dedup_ingest(d_block: DBlock):
             uid=KEntity.hash(v.name),
             type_code=v.type,
             repr=v.name,
-            repr_embedding=embeds[k] # TODO
+            repr_embedding=embeds[k]
         )
         for k, v in e_delta.items()
     ]
@@ -129,7 +129,6 @@ def fact_ingest(d_block: DBlock):
                 loc_begin=v.ref_pos,
                 loc_type="char"
             )
-        # TODO improve for other types
         f.proof.connect(d_block, properties=proof)
 
     print("ingesting fact type")

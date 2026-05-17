@@ -113,6 +113,7 @@ def describe_entities(uids: List[str]) -> str:
         result += "\nNEIGHBORS:\n"
         result += "\n".join(r_facts)
         result += "\n---\n"
+    logger.info(f"[TOOL] [entity describe] r={len(result)}")
     return result
 
 

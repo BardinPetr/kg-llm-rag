@@ -120,6 +120,7 @@ class DocumentProcStages(StrEnum):
     TEXT = "TEXT"
     TABL = "TABL"
     IMAG = "IMAG"
+    KGLD = "KGLD"
 
 
 class BlockProcStages(StrEnum):
@@ -158,8 +159,6 @@ class DBlock(IDNode, DEmbeddable):
     kg_entity_map = JSONProperty()
 
     stages = ArrayProperty()
-
-    proves = RelationshipFrom("DBlock", "K_PROOF", model=ProvedByRel)
 
     def __str__(self):
         return f"BLK(`{self.title}`)"

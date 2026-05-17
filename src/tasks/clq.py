@@ -1,6 +1,9 @@
 from celery import Celery
+from redis import Redis
 
 from utils.config import sys_cfg
+
+redis = Redis.from_url(f'{sys_cfg.redis.conn}/0')
 
 clq = Celery("kgq")
 clq.conf.update(

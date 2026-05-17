@@ -102,7 +102,7 @@ dependencies = [
     "python-socketio>=5.16.1",
     "uvicorn[standard]>=0.41.0",
     "python-pptx>=1.0.2",
-    "docling[htmlrender,ocr]>=2.80.0",
+    "docling[easyocr,htmlrender,ocr,vlm]>=2.80.0",
 ]
 
 [dependency-groups]

@@ -37,26 +37,17 @@ llms:
   oss:
     provider: "openrouter"
     model: "openai/gpt-oss-120b"
+  test-llm:
+    provider: "openrouter"
+    model: "google/gemini-2.5-flash"
   emb:
     type: emb
-
     provider: "openrouter"
-#    model: "qwen/qwen3-embedding-8b"
     model: "openai/text-embedding-3-small"
-
-#    provider: "deepinfra"
-#    model: "google/embeddinggemma-300m"
-#    model: "BAAI/bge-m3" ? fuck what
-#    model: "Qwen/Qwen3-Embedding-8B-batch"
-#    model: "openai/text-embedding-3-large"
-
   test-embeddings:
     type: emb
     provider: "openrouter"
     model: "openai/text-embedding-3-small"
-  test-llm:
-    provider: "openrouter"
-    model: "google/gemini-2.5-flash"
 
 s3:
   key_id: "admin"

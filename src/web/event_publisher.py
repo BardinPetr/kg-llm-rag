@@ -4,6 +4,8 @@ from typing import Optional, List, Iterable
 from loguru import logger
 import redis
 
+from utils.config import sys_cfg
+
 _redis_client = None
 _session_id_ctx: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "session_id", default=None
@@ -13,9 +15,7 @@ _session_id_ctx: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
 def get_redis_client() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.Redis(
-            host="localhost", port=6379, db=0, decode_responses=True
-        )
+        _redis_client = redis.Redis.from_url(f'{sys_cfg.redis.conn}/0', decode_responses=True)
     return _redis_client
 
 

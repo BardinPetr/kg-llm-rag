@@ -8,7 +8,7 @@ from utils.prompt import sprompt
 from search.search_tools import *
 
 
-llm = load_llm_lc("gemini3pro")
+llm = load_llm_lc("gemini3")
 
 def agent():
     return create_agent(
